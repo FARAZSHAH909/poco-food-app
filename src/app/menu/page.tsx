@@ -1,54 +1,41 @@
-"use client";
+import { Suspense } from "react";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { CartProvider } from "@/lib/context/CartContext";
+import { getAllFoodItems, getFoodItemsByCategory } from "@/lib/api/foodService";
+import { FoodItem, FoodCategory, APIResponse } from "@/lib/types";
+import MenuClient from "./MenuClient";
 
-import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
-import { FoodGrid } from "@/components/food-items/FoodGrid";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FoodItem, FoodCategory } from "@/lib/types";
+async function fetchFoodItems(categoryParam: FoodCategory | null): Promise<FoodItem[]> {
+  try {
+    let response: APIResponse<FoodItem[]>;
+    if (categoryParam) {
+      response = await getFoodItemsByCategory(categoryParam);
+    } else {
+      response = await getAllFoodItems();
+    }
+    return response.success && response.data ? response.data : [];
+  } catch (error) {
+    console.error("Failed to fetch food items:", error);
+    return [];
+  }
+}
 
-export default function MenuClient({ foodItems: initialFoodItems, initialCategory }: { foodItems: FoodItem[]; initialCategory: FoodCategory | null }) {
-  const [foodItems, setFoodItems] = useState(initialFoodItems);
-  const searchParams = useSearchParams();
-  const categoryParam = searchParams.get("category") as FoodCategory | null;
-
-  useEffect(() => {
-    // Update foodItems if the category changes via search params
-    setFoodItems(initialFoodItems);
-  }, [initialFoodItems]);
-
-  // Group items by category for the tabs
-  const categories = {
-    pizza: foodItems.filter(item => item.category === "pizza"),
-    burger: foodItems.filter(item => item.category === "burger"),
-    pasta: foodItems.filter(item => item.category === "pasta"),
-    drinks: foodItems.filter(item => item.category === "coldDrink" || item.category === "hotDrink"),
-    all: foodItems,
-  };
+export default async function MenuPage({ searchParams }: { searchParams: { category?: string } }) {
+  const categoryParam = (searchParams.category as FoodCategory) || null;
+  const foodItems = await fetchFoodItems(categoryParam);
 
   return (
-    <Tabs defaultValue={categoryParam || initialCategory || "all"} className="w-full">
-      <TabsList className="grid w-full max-w-4xl mx-auto grid-cols-5 mb-8">
-        <TabsTrigger value="all">All</TabsTrigger>
-        <TabsTrigger value="pizza">Pizza</TabsTrigger>
-        <TabsTrigger value="burger">Burger</TabsTrigger>
-        <TabsTrigger value="pasta">Pasta</TabsTrigger>
-        <TabsTrigger value="drinks">Drinks</TabsTrigger>
-      </TabsList>
-      <TabsContent value="all">
-        <FoodGrid foods={categories.all} />
-      </TabsContent>
-      <TabsContent value="pizza">
-        <FoodGrid foods={categories.pizza} />
-      </TabsContent>
-      <TabsContent value="burger">
-        <FoodGrid foods={categories.burger} />
-      </TabsContent>
-      <TabsContent value="pasta">
-        <FoodGrid foods={categories.pasta} />
-      </TabsContent>
-      <TabsContent value="drinks">
-        <FoodGrid foods={categories.drinks} />
-      </TabsContent>
-    </Tabs>
+    <CartProvider>
+      <MainLayout>
+        <div className="bg-[#f5f5f5] py-12">
+          <div className="container">
+            <h1 className="text-3xl font-bold mb-8 text-center">Our Menu</h1>
+            <Suspense fallback={<div className="flex justify-center py-20"><div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+              <MenuClient foodItems={foodItems} initialCategory={categoryParam} />
+            </Suspense>
+          </div>
+        </div>
+      </MainLayout>
+    </CartProvider>
   );
 }
